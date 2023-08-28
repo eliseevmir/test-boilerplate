@@ -3,5 +3,7 @@
     "statusBar.background": "#f1c500",
     "statusBar.debuggingBackground": "#ee4b00",
     "statusBar.foreground": "#382b00"
-  }
+  },
+  "editor.autoClosingBrackets": "never",
+  "editor.autoClosingQuotes": "never"
 }
