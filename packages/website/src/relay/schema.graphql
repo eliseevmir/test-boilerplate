@@ -124,6 +124,9 @@ type Query {
   """Queries of simple blog"""
   blog: BlogQuery!
 
+  """Queries of users notifications"""
+  notifications: NotificationsQuery!
+
   """Application version info"""
   version: String!
 
@@ -366,6 +369,12 @@ type User implements Node {
   avatar: File
   files(first: Int, last: Int, after: String, before: String, account: [ID!], type: [FileType!], id: [ID!]): FilesConnection!
   account: Account
+
+  """Returns the counter of unread notifications"""
+  notificationsCounter: Int!
+
+  """Returns a list of notifications for the current user"""
+  notifications(first: Int, last: Int, after: String, before: String, status: [NotificationStatus!], category: [NotificationCategory!], ids: [ID!], orderBy: [NotificationOrderBy!], search: [NotificationSearch!]): NotificationConnection!
 }
 
 type FilesConnection implements Connection {
@@ -393,6 +402,69 @@ type Account implements Node {
 enum AccountStatus {
   ALLOWED
   FORBIDDEN
+}
+
+type NotificationConnection implements Connection {
+  edges: [NotificationEdge!]!
+  pageInfo: PageInfo!
+}
+
+type NotificationEdge implements Edge {
+  node: Notification!
+  cursor: String!
+}
+
+type Notification implements Node {
+  id: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  title: String!
+  text: String!
+  category: NotificationCategory!
+  status: NotificationStatus!
+  actions: [NotificationAction!]
+  recipient: NotificationEntity!
+}
+
+enum NotificationCategory {
+  NORMAL
+  WARN
+  CRITICAL
+}
+
+enum NotificationStatus {
+  CREATED
+  READ
+}
+
+type NotificationAction {
+  name: NotificationActionName!
+}
+
+enum NotificationActionName {
+  VOID
+}
+
+union NotificationEntity = User
+
+input NotificationOrderBy {
+  field: NotificationOrderField!
+  direction: OrderDirection!
+}
+
+enum NotificationOrderField {
+  CREATED_AT
+  UPDATED_AT
+}
+
+input NotificationSearch {
+  field: NotificationSearchField!
+  query: String!
+}
+
+enum NotificationSearchField {
+  TEXT
+  TITLE
 }
 
 input UsersSearch {
@@ -808,6 +880,14 @@ type BlogQuery {
   posts(first: Int, last: Int, after: String, before: String, id: [ID!], orderBy: [BlogPostOrderBy!]): BlogPostsConnection!
 }
 
+type NotificationsQuery {
+  """Returns the list of notifications"""
+  list(first: Int, last: Int, after: String, before: String, status: [NotificationStatus!], category: [NotificationCategory!], recipient: [ID!], ids: [ID!], orderBy: [NotificationOrderBy!], search: [NotificationSearch!]): NotificationConnection!
+
+  """Returns the counter of unread notifications"""
+  unreaded(recipient: ID!): Int!
+}
+
 union Me = User
 
 type Mutation {
@@ -964,4 +1044,12 @@ type PageMutationError implements Error {
 type Subscription {
   """Fired when user data was updated"""
   userWasUpdated: User!
+  notificationWasCreated: [Notification!]!
+  notificationWasUpdated: [Notification!]!
+  notificationCounterWasUpdated: NotificationCounterSubscriptionPayload!
+}
+
+type NotificationCounterSubscriptionPayload {
+  recipient: ID!
+  counter: Int!
 }
