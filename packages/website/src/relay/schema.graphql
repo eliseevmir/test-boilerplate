@@ -657,6 +657,9 @@ type TemplateSecondPage implements PageTemplateInterface {
 
   """Page content"""
   content: ContentBlockLexical
+
+  """Page news"""
+  news: ContentBlockLexical
 }
 
 type TemplateFallbackPage implements PageTemplateInterface {

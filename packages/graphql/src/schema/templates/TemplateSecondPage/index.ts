@@ -38,6 +38,12 @@ const TemplateSecondPage = new GraphQLObjectType<TemplateParent, Context>({
       description: 'Page content',
       resolve: parent => parent.contentBlocks.find(cb => cb.name === 'page:content'),
     },
+
+    news: {
+      type: ContentBlockLexical,
+      description: 'Page news',
+      resolve: parent => parent.contentBlocks.find(cb => cb.name === 'news'),
+    },
   }),
 });
 

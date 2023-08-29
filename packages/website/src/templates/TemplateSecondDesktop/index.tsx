@@ -7,6 +7,7 @@ import { graphql, useFragment } from 'react-relay';
 import Header from '~/components/Header';
 import TemplateSecondHeading from './TemplateSecondHeading';
 import TemplateSecondContent from './TemplateSecondContent';
+import TemplateSecondNews from './TemplateSecondNews';
 import fragment, {
   TemplateSecondDesktopFragment$key,
 } from '~/relay/artifacts/TemplateSecondDesktopFragment.graphql';
@@ -55,6 +56,7 @@ const TemplateSecondDesktopFragment: React.FC<Props> = props => {
         <Content>
           <TemplateSecondHeading fragmentRef={template} />
           <TemplateSecondContent fragmentRef={template} />
+          <TemplateSecondNews fragmentRef={template} />
         </Content>
       </Container>
     </>
@@ -71,6 +73,7 @@ graphql`
       ... on TemplateSecondPage {
         ...TemplateSecondHeading
         ...TemplateSecondContent
+        ...TemplateSecondNews
       }
     }
   }
