@@ -13,27 +13,25 @@ import { GraphQLError } from 'graphql';
 import { createClient, NextMessage, Message, Client } from 'graphql-ws';
 import { RelayEnvironmentProvider } from 'react-relay';
 import { useSelector } from 'react-redux';
-import { createSelector } from 'reselect';
+import { createStructuredSelector } from 'reselect';
 
-interface Props {
+interface RelayProviderProps {
   readonly children: React.ReactNode | React.ReactNode[];
   readonly storeRecords?: Record<string, any>;
 }
 
-const selector = createSelector(
-  (store: ReduxStore) => store.server.graphqlEndpoint,
-  (store: ReduxStore) => store.server.subscriptionEndpoint,
-  (graphqlEndpoint, subscriptionEndpoint) => ({ graphqlEndpoint, subscriptionEndpoint }),
-);
+const selector = createStructuredSelector({
+  graphqlEndpoint: (store: ReduxStore) => store.server.graphqlEndpoint,
+  subscriptionEndpoint: (store: ReduxStore) => store.server.subscriptionEndpoint,
+});
 
-const RelayProvider: React.FC<Props> = props => {
+const RelayProvider: React.FC<RelayProviderProps> = props => {
   const { children, storeRecords } = props;
   const { graphqlEndpoint, subscriptionEndpoint } = useSelector(selector);
-
-  const accessTokenRef = React.useRef<string | null>(null);
   const graphqlEndpointRef = React.useRef(graphqlEndpoint);
   const subscriptionEndpointRef = React.useRef(subscriptionEndpoint);
   const subscriptionClientRef = React.useRef<Client | null>(null);
+  const subscriptionSocketRef = React.useRef<WebSocket | null>(null);
 
   if (graphqlEndpointRef.current !== graphqlEndpoint) {
     graphqlEndpointRef.current = graphqlEndpoint;
@@ -46,52 +44,47 @@ const RelayProvider: React.FC<Props> = props => {
   if (!subscriptionClientRef.current && typeof window !== 'undefined') {
     console.debug('[Relay] Subscription client init');
     subscriptionClientRef.current = createClient({
+      retryWait: async attempt => {
+        await new Promise(resolve => setTimeout(resolve, Math.min(attempt * 1000, 5000)));
+      },
       retryAttempts: 30,
       url: subscriptionEndpointRef.current || 'unknown',
-      connectionParams: () =>
-        accessTokenRef.current
-          ? {
-              Authorization: `Bearer ${accessTokenRef.current}`,
-            }
-          : {},
-      on:
-        process.env.NODE_ENV === 'development'
-          ? {
-              connected: () => console.log('%c%s', 'color:#009627', 'WebSocket connected'),
-              closed: () => console.log('%c%s', 'color:#ff4e4e', 'WebSocket closed'),
-              error: err => console.log('%c%s', 'color:#ff4e4e', 'WebSocket error', err),
-              message: message => {
-                if (typeof message === 'undefined') {
-                  return;
-                }
-                const isNextMessage = (m: Message): m is NextMessage => m.type === 'next';
+      on: {
+        connected: socket => {
+          (subscriptionSocketRef.current as any) = socket;
+          console.log('%c%s', 'color:#009627', 'WebSocket connected');
+        },
+        closed: () => console.log('%c%s', 'color:#ff4e4e', 'WebSocket closed'),
+        error: err => console.log('%c%s', 'color:#ff4e4e', 'WebSocket error', err),
+        message: message => {
+          if (typeof message === 'undefined') {
+            return;
+          }
+          const isNextMessage = (m: Message): m is NextMessage => m.type === 'next';
 
-                if (isNextMessage(message)) {
-                  const { data } = message.payload;
-                  if (typeof data === 'object') {
-                    Object.entries(data as any).forEach(([trigger, payload]) => {
-                      console.groupCollapsed(
-                        '%c%s%c%s',
-                        'color:#009627;',
-                        '• ',
-                        'color:#009627;',
-                        `WebSocket message «${trigger}»`,
-                      );
-                      console.log(payload);
-                      console.groupEnd();
-                    });
-                  }
-                }
-              },
+          if (isNextMessage(message)) {
+            const { data } = message.payload;
+            if (typeof data === 'object') {
+              Object.entries(data as any).forEach(([trigger, payload]) => {
+                console.groupCollapsed(
+                  '%c%s%c%s',
+                  'color:#009627;',
+                  '• ',
+                  'color:#009627;',
+                  `WebSocket message «${trigger}»`,
+                );
+                console.log(payload);
+                console.groupEnd();
+              });
             }
-          : undefined,
+          }
+        },
+      },
     });
   }
 
   const relayFetch = React.useCallback<FetchFunction>(
     async (operation, variables, _cacheConfig, uploadables) => {
-      const authOperations: string[] = [];
-
       const request: RequestInit = {
         method: 'POST',
         headers: {
@@ -99,20 +92,13 @@ const RelayProvider: React.FC<Props> = props => {
         },
       };
 
-      if (!authOperations.includes(operation.name) && accessTokenRef.current) {
-        request.headers = {
-          ...request.headers,
-          Authorization: `Bearer ${accessTokenRef.current}`,
-        };
-      }
-
       if (uploadables) {
         if (!window.FormData) {
           console.error('Uploading files without `FormData` not supported.');
         }
 
         const formData = new FormData();
-        const map: Record<number, string[]> = {};
+        const map: Record<string, [string]> = {};
 
         let filesFieldName = 'variables.f';
 
@@ -230,8 +216,7 @@ const RelayProvider: React.FC<Props> = props => {
 
         if (body.errors) {
           console.groupCollapsed('%c%s', `color:${color}`, 'Errors');
-
-          if (body.errors instanceof Array) {
+          if (Array.isArray(body.errors)) {
             body.errors.forEach((error: Error) => {
               console.log('%c%s', `color:${color}`, error.message);
               console.groupCollapsed('%c%s', `color:${color}`, 'Details');
